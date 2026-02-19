@@ -1,24 +1,22 @@
 package org.ft.wallet.dto;
 
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Data
-public class BankSuccessEvent {
-    private UUID eventId;
-    private String idempotencyKey;
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class WalletCreditSuccessEvent {
     private String transactionId;
     private String customerId;
     private BigDecimal amount;
     private String currency;
-    private LocalDateTime successAt;
+    private String status;
+    private String completedAt;
 }
