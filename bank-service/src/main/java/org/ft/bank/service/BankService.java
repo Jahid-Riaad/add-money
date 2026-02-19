@@ -28,7 +28,7 @@ public class BankService {
     private String keyPrefix;
 
     @Transactional
-    public void debit(
+    public boolean debit(
             String customerId,
             BigDecimal amount,
             String currency,
@@ -36,20 +36,13 @@ public class BankService {
     ) {
         String bankIdempotencyKey = keyPrefix + "-" + clientProvidedKey;
 
-        //Idempotency Check
-        Optional<BankIdempotency> existing =
-                idemRepo.findById(bankIdempotencyKey);
 
+        // Idempotency Check
+        Optional<BankIdempotency> existing = idemRepo.findById(bankIdempotencyKey);
         if (existing.isPresent()) {
-
-            if ("SUCCESS".equals(existing.get().getStatus())) {
-                // Already processed
-                return;
-            }
-
-            if ("PROCESSING".equals(existing.get().getStatus())) {
-                throw new RuntimeException("Duplicate request in progress");
-            }
+            if ("SUCCESS".equals(existing.get().getStatus())) return true;
+            if ("PROCESSING".equals(existing.get().getStatus())) throw new RuntimeException("Duplicate in progress");
+            if ("FAILED".equals(existing.get().getStatus())) return false;
         }
 
         //Save PROCESSING
@@ -59,17 +52,15 @@ public class BankService {
                 .status("PROCESSING")
                 .createdAt(LocalDateTime.now())
                 .build();
-
         idemRepo.save(idem);
 
         //Debit Logic
-        //since account is not available primarily , demo
         Account account = createAccountIfNotExists(customerId);
 
         if (account.getBalance().compareTo(amount) < 0) {
             idem.setStatus("FAILED");
             idemRepo.save(idem);
-            throw new RuntimeException("Insufficient balance");
+            return false;
         }
 
         account.setBalance(account.getBalance().subtract(amount));
@@ -90,6 +81,7 @@ public class BankService {
         //Mark SUCCESS
         idem.setStatus("SUCCESS");
         idemRepo.save(idem);
+        return  true;
     }
 
     public Account  createAccountIfNotExists(String customerId) {

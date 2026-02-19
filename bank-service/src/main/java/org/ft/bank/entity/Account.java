@@ -8,14 +8,13 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name="accounts")
+@Table(name="ft_accounts", schema = "bank")
 @Data
 public class Account {
 
     @Id
     @GeneratedValue
     private Long id;
-
     private String customerId;
     private String currency;
     private BigDecimal balance;

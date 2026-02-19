@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TransferRequest {
-    private Long customerId;
+    private String customerId;
     private Long bankAccountId;
     private BigDecimal amount;
     private String currency;

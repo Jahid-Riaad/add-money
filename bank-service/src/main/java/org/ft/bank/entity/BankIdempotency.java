@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "bank_idempotency")
+@Table(name="ft_idempotency_keys", schema = "bank")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

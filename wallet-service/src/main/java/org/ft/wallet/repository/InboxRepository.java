@@ -6,6 +6,4 @@ import java.util.List;
 import java.util.UUID;
 
 public interface InboxRepository extends JpaRepository<InboxEvent, UUID> {
-
-    List<InboxEvent> findByStatus(String status);
 }

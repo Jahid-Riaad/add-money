@@ -15,8 +15,8 @@ import java.util.UUID;
 public class TransferEvent {
     private UUID eventId;
     private String transactionId;
-    private Long customerId;
-    private Long bankAccountId;
+    private String customerId;
+    private String bankAccountId;
     private BigDecimal amount;
     private String currency;
     private String idempotencyKey;
