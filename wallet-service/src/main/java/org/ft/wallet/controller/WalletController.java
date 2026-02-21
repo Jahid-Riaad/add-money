@@ -1,5 +1,6 @@
 package org.ft.wallet.controller;
 
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.ft.wallet.dto.TransferRequest;
 import org.ft.wallet.dto.TransferResponse;
@@ -16,8 +17,9 @@ public class WalletController {
     @PostMapping("/topup")
     public TransferResponse topup(
             @RequestBody TransferRequest request,
-            @RequestHeader("Idempotency-Key") String key
+            @RequestHeader("reference-number") @Size(max = 10, message = "Max Key size is 10 characters")
+            String referenceNumber
     ) {
-        return walletService.initiateTopup(request, key);
+        return walletService.initiateTopup(request, referenceNumber);
     }
 }

@@ -13,12 +13,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @Builder
 public class TransferEvent {
+    private String source;
     private UUID eventId;
-    private String transactionId;
+    private String idempotencyKey;
+    private UUID transactionId;
     private String customerId;
     private String bankAccountId;
     private BigDecimal amount;
     private String currency;
-    private String idempotencyKey;
     private LocalDateTime createdAt;
 }

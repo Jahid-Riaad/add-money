@@ -12,11 +12,10 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BankSuccessEvent {
-
     private UUID eventId;
+    private String idempotencyKey;
     private UUID transactionId;
     private String customerId;
     private BigDecimal amount;
     private String currency;
-    private String idempotencyKey;
 }

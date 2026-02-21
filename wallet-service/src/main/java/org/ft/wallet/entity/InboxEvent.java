@@ -16,9 +16,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 public class InboxEvent {
-
     @Id
     private UUID eventId;
-
     private LocalDateTime processedAt;
 }

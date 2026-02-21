@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 public class BankSuccessEvent {
     private UUID eventId;
     private String idempotencyKey;
-    private String transactionId;
+    private UUID transactionId;
     private String customerId;
     private BigDecimal amount;
     private String currency;

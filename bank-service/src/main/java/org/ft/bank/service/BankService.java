@@ -1,12 +1,15 @@
 package org.ft.bank.service;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.common.protocol.types.Field;
 import org.ft.bank.dto.BankSuccessEvent;
+import org.ft.bank.dto.TransferEvent;
 import org.ft.bank.entity.Account;
-import org.ft.bank.entity.BankIdempotency;
+import org.ft.bank.entity.TransactionLog;
+import org.ft.bank.enumeration.IdempotencyStatus;
 import org.ft.bank.publisher.BankEventPublisher;
 import org.ft.bank.repository.AccountRepository;
-import org.ft.bank.repository.BankIdempotencyRepository;
+import org.ft.bank.repository.TransactionLogRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,68 +23,68 @@ import java.util.UUID;
 public class BankService {
 
     private final AccountRepository accountRepo;
-    private final BankIdempotencyRepository idemRepo;
+    private final TransactionLogRepository idemRepo;
     private final BankEventPublisher eventPublisher;
     @Value("${bank.default-currency}")
     private String defaultCurrency;
-    @Value("${fintech.idempotency.key-prefix}")
-    private String keyPrefix;
 
     @Transactional
-    public boolean debit(
-            String customerId,
-            BigDecimal amount,
-            String currency,
-            String clientProvidedKey
-    ) {
-        String bankIdempotencyKey = keyPrefix + "-" + clientProvidedKey;
+    public boolean debit(TransferEvent transferEvent) {
+        // 1. Idempotency Check
+        Optional<TransactionLog> existing = idemRepo.findBySourceAndIdempotencyKeyAndTransactionId(
+                transferEvent.getSource(),
+                transferEvent.getIdempotencyKey(),
+                transferEvent.getTransactionId()
+        );
 
-
-        // Idempotency Check
-        Optional<BankIdempotency> existing = idemRepo.findById(bankIdempotencyKey);
         if (existing.isPresent()) {
-            if ("SUCCESS".equals(existing.get().getStatus())) return true;
-            if ("PROCESSING".equals(existing.get().getStatus())) throw new RuntimeException("Duplicate in progress");
-            if ("FAILED".equals(existing.get().getStatus())) return false;
+            TransactionLog record = existing.get();
+            return switch (record.getStatus()) {
+                case SUCCESS -> true;
+                case FAILED -> false;
+                case PROCESSING -> throw new RuntimeException("Transaction currently being processed");
+            };
         }
 
-        //Save PROCESSING
-        BankIdempotency idem = BankIdempotency.builder()
-                .idempotencyKey(bankIdempotencyKey)
-                .transactionId(UUID.randomUUID())
-                .status("PROCESSING")
+        //Save Initial State
+        TransactionLog idem = TransactionLog.builder()
+                .idempotencyKey(transferEvent.getIdempotencyKey())
+                .transactionId(transferEvent.getTransactionId())
+                .source(transferEvent.getSource())
+                .status(IdempotencyStatus.PROCESSING)
+                .amount(transferEvent.getAmount())
                 .createdAt(LocalDateTime.now())
                 .build();
         idemRepo.save(idem);
 
-        //Debit Logic
-        Account account = createAccountIfNotExists(customerId);
+        //Balance Debit Logic
+        //Creating account to continue
+        Account account = createAccountIfNotExists(transferEvent.getCustomerId());
 
-        if (account.getBalance().compareTo(amount) < 0) {
-            idem.setStatus("FAILED");
-            idemRepo.save(idem);
+        if (account.getBalance().compareTo(transferEvent.getAmount()) < 0) {
+            idem.setStatus(IdempotencyStatus.FAILED);
+            //we can publish a BankFailureEvent here
             return false;
         }
 
-        account.setBalance(account.getBalance().subtract(amount));
+        account.setBalance(account.getBalance().subtract(transferEvent.getAmount()));
         accountRepo.save(account);
 
-        //Publish Success Event
+        // Publish Success Event
         BankSuccessEvent event = BankSuccessEvent.builder()
                 .eventId(UUID.randomUUID())
-                .transactionId(idem.getTransactionId())
-                .customerId(customerId)
-                .amount(amount)
-                .currency(currency)
-                .idempotencyKey(bankIdempotencyKey)
+                .idempotencyKey(transferEvent.getIdempotencyKey())
+                .transactionId(transferEvent.getTransactionId())
+                .customerId(transferEvent.getCustomerId())
+                .amount(transferEvent.getAmount())
+                .currency(transferEvent.getCurrency())
                 .build();
 
         eventPublisher.publishBankSuccess(event);
 
-        //Mark SUCCESS
-        idem.setStatus("SUCCESS");
-        idemRepo.save(idem);
-        return  true;
+        // 5. Mark SUCCESS
+        idem.setStatus(IdempotencyStatus.SUCCESS);
+        return true;
     }
 
     public Account  createAccountIfNotExists(String customerId) {

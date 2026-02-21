@@ -7,6 +7,7 @@ import org.ft.wallet.dto.BankSuccessEvent;
 import org.ft.wallet.dto.WalletCreditSuccessEvent;
 import org.ft.wallet.entity.Wallet;
 import org.ft.wallet.entity.InboxEvent;
+import org.ft.wallet.enumeration.IdempotencyStatus;
 import org.ft.wallet.repository.IdempotencyRepository;
 import org.ft.wallet.repository.InboxRepository;
 import org.ft.wallet.repository.WalletRepository;
@@ -40,38 +41,41 @@ public class WalletSagaListener {
     public void handleBankSuccess(String message) throws Exception {
         BankSuccessEvent event = mapper.readValue(message, BankSuccessEvent.class);
 
-        // Replay protection (Inbox pattern)
+        //Prevent double-crediting the wallet for the event
         if (inboxRepo.existsById(event.getEventId())) {
             log.info("Duplicate event ignored: {}", event.getEventId());
             return;
         }
 
-        // 1. Update Wallet Balance
+        //Update Wallet Balance
         Wallet wallet = walletRepo.findByCustomerId(event.getCustomerId())
-                .orElse(new Wallet(event.getCustomerId(), BigDecimal.ZERO, defaultCurrency));
+                .orElseGet(
+                        () -> {
+                            log.info("Creating new wallet for customer: {}", event.getCustomerId());
+                            return  walletRepo.save(new Wallet(event.getCustomerId(), BigDecimal.ZERO, "BDT"));
+                        }
+                );
 
         wallet.setBalance(wallet.getBalance().add(event.getAmount()));
         walletRepo.save(wallet);
 
-        // 2. Finalize Transaction Status
-        updateIdempotencyStatus(event.getIdempotencyKey(), "SUCCESS");
+        //Finalize Transaction Status in Wallet DB
+        updateIdempotencyStatus(event.getIdempotencyKey(), IdempotencyStatus.SUCCESS);
 
-        // 3. Produce FINAL Success Event for the system
+        //Produce FINAL Success Event (The Receipt)
         WalletCreditSuccessEvent finalEvent = WalletCreditSuccessEvent.builder()
-                .transactionId(event.getIdempotencyKey())
+                .transactionId(event.getTransactionId())
                 .customerId(event.getCustomerId())
                 .amount(event.getAmount())
-                .currency(defaultCurrency)
+                .currency(event.getCurrency())
                 .status("COMPLETED")
                 .completedAt(LocalDateTime.now().toString())
                 .build();
 
-        kafkaTemplate.send(creditSuccessTopic, event.getIdempotencyKey(), finalEvent);
+        kafkaTemplate.send(creditSuccessTopic, event.getTransactionId().toString(), finalEvent);
 
-        // 4. Mark as processed in Inbox
+        //Mark message as Seen in Inbox
         inboxRepo.save(new InboxEvent(event.getEventId(), LocalDateTime.now()));
-
-        log.info("Wallet top-up COMPLETED and event published for customer: {}", event.getCustomerId());
     }
 
     @KafkaListener(topics = "${kafka.topic.bank-debit-failed}")
@@ -81,13 +85,14 @@ public class WalletSagaListener {
 
         if (event.getTransactionId() == null) return;
         log.warn("Bank debit FAILED for Tx: {}. Reason: {}", event.getTransactionId(), event.getReason());
-        updateIdempotencyStatus(event.getTransactionId(), "FAILED");
+        updateIdempotencyStatus(event.getTransactionId(), IdempotencyStatus.FAILED);
     }
 
-    private void updateIdempotencyStatus(String key, String status) {
-        idempotencyRepo.findById(key).ifPresent(record -> {
+    private void updateIdempotencyStatus(String key, IdempotencyStatus status) {
+        idempotencyRepo.findByIdempotencyKey(key).ifPresent(record -> {
             record.setStatus(status);
             idempotencyRepo.save(record);
+            log.info("Updated Idempotency Key {} to status {}", key, status);
         });
     }
 }

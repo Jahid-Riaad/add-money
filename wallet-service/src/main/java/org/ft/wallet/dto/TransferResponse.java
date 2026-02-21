@@ -1,9 +1,12 @@
 package org.ft.wallet.dto;
 
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.ft.wallet.enumeration.IdempotencyStatus;
 
 import java.util.UUID;
 
@@ -13,5 +16,6 @@ import java.util.UUID;
 @Builder
 public class TransferResponse {
     private UUID transactionId;
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private IdempotencyStatus status;
 }

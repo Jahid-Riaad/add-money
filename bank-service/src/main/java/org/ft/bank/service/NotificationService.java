@@ -6,14 +6,13 @@ import org.ft.bank.dto.TransferEvent;
 import org.ft.bank.dto.WalletCreditSuccessEvent;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class NotificationService {
-    @KafkaListener(topics = "${kafka.topic.wallet-credit-success}", groupId = "notification-group-v3")
+    @KafkaListener(topics = "${kafka.topic.wallet-credit-success}", groupId = "notification-group")
     public void sendNotification(ConsumerRecord<String, Object> record) {
         Object payload = record.value();
         log.info("RAW PAYLOAD RECEIVED: {}", payload);

@@ -7,13 +7,14 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class WalletCreditSuccessEvent {
-    private String transactionId;
+    private UUID transactionId;
     private String customerId;
     private BigDecimal amount;
     private String currency;
